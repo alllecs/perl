@@ -1,8 +1,8 @@
 #!/usr/bin/perl
-#       file:   stat_amp.pl
-#       date    2015-04-7
+#       file:   hit_miss_V5.pl
+#       date    2015-03-18
 #       by:     Smirnov Alexander, alllecs@cs.niisi.ras.ru
-#       result: 
+#       result: display store/load hit and writeback
 #
 
 $shh = $smm = $shm = $smh = 0;
@@ -15,12 +15,155 @@ $i = $j = $k = 0;
 $dif = $sum = 0;
 $sit1 = $sit2 = $sit3 = $sit4 =$sit5 = 0;
 $x = 0;
-$i = 0;
-$y = 1;
-$p  = 0;
-$b = $bne = $j = $beq = $bal = $jal = $jr = $beql = $bgez = $blez = $jalr = 0;
 @summ = ();
 @diff = ();
+if ($#ARGV >= 0) {
+open (FILE, $ARGV[0]) or die $!;
+while (<FILE>) {
+	if (/(\d+).*(store|load).*(hit|miss).*(VA=)(.{16}).*(PA=)(.{8}).*/) {
+	       	$uninstr = $instr; #write previous number instruction
+	       	$instr = $1; #write number instruction
+       		$uns_l = $s_l; # write previous store|load
+	       	$s_l = $2; # write store|load
+	       	$unh_m = $h_m; #write previous hit|miss
+	       	$h_m = $3; # write hit|miss
+	       	$unva = $va; #write previous VA
+	       	$va = $5; #write VA
+	       	$unpa = $pa; #write previous PA
+	       	$pa = $7; #write PA
+#		&hit_miss; #function hit_miss
+		if ($uninstr eq $instr) {
+			if ($uns_l eq 'store' and $s_l eq 'store') {
+				if ($unh_m eq 'hit' and $h_m eq 'hit') {
+		  			$shh++;
+	       				$x++;
+					$s_l = 0;
+					$h_m = 0;
+				} elsif ($unh_m eq 'miss' and $h_m eq 'miss') {
+					$smm++;
+					$x++;
+					$s_l = 0;
+					$h_m = 0;
+				} elsif ($unh_m eq 'hit' and $h_m eq 'miss') {
+					$shm++;
+					$x++;
+					$s_l = 0;
+					$h_m = 0;
+				} elsif ($unh_m eq 'miss' and $h_m eq 'hit') {
+					$smh++;
+					$x++;
+					$s_l = 0;
+					$h_m = 0;
+				}
+			} elsif ($uns_l eq 'load' and $s_l eq 'load') {
+				if ($unh_m eq 'miss' and $h_m eq 'miss') {
+					$lmm++;
+					$x++;
+					$s_l = 0;
+					$h_m = 0;
+				} elsif ($unh_m eq 'miss' and $h_m eq 'hit') {
+					$lmh++;
+					$x++;
+					$s_l = 0;
+					$h_m = 0;
+				}
+			}
+		} elsif (($s_l eq 'store') and ($uninstr ne $instr)) {
+			if ($h_m eq 'hit') {
+				$sh++;
+				$x++;
+			} elsif ($h_m eq 'miss') {
+				$sm++;
+				$x++;
+			}
+		} elsif ($s_l eq 'load') {
+			if ($h_m eq 'hit') {
+				$lh++;
+				$x++;
+			} elsif ($h_m eq 'miss') {
+				$lm++;
+				$x++;
+			}
+		}
+			#перевод 16 в 10 систему и наоборот
+			$y1 = hex($unva);
+			$y1 = $y1 + 0x20;
+			$y1 = sprintf("%x", $y1);		
+	
+			$y2 = hex($unva);
+			$y2 = $y2 - 0x20;
+			$y2 = sprintf("%x", $y2);		
+	
+		if ($va eq $y1) {
+			$sum++;
+			if ($dif != 0) {
+				$k++;
+				$diff[$k] = $dif;
+				$dif = 0;
+			}
+		} elsif ($va eq $y2) {
+			$diff++;
+			if ($sum != 0) {
+				$j++;
+				$summ[$j] = $sum;
+				$sum = 0;
+			}
+		}
+	}
+	if ($i == 0 and (/(\d+).*(scache).*(miss).*(PA=)(.{8}).*/)) {
+		$num1 = $1;
+#		$num2 = $num1 + 1;
+		$pa1 = $5;
+		$str = <FILE>;
+		$_ = $str;
+		if (m/.*(addr=)(.{8}).*/) {
+			$addr1 = $2;
+			$str = <FILE>;
+			$_ = $str;
+			if (m/.*(dmemacc).*/) {
+				$i = 1;
+			}
+		}
+	}
+	if ($i == 1 and ((/(\d+).*(scache).*(miss).*(PA=)(.{8}).*/))) {
+		$num2 = $1;
+		$pa2 = $5;
+		$str = <FILE>;
+		$_= $str;
+		$i = 0;
+		if (m/.*(addr=)(.{8}).*/ and $num2 == $num1 + 1) {
+			$addr2 = $2;
+			$str = <FILE>;
+			$_ = $str;
+			if (m/.*(dmemacc).*/) {
+#Сортировка по маскам
+			if ($addr1 eq $pa2) {
+				if ($pa1 eq $addr2) {
+#					print("4 $num1, PA1=$pa1, addr1=$addr1\n");
+#					print("4 $num2, PA2=$pa2, addr2=$addr2\n\n");
+					$sit4 += 1;
+				} else {
+#					print("1 $num1, PA1=$pa1, addr1=$addr1\n");
+#					print("1 $num2, PA2=$pa2, addr2=$addr2\n\n");
+					$sit1 += 1;
+				}
+			} elsif ($addr1 eq $addr2) {
+				$sit2 += 1;
+#				print("2 $num1, PA1=$pa1, addr1=$addr1\n");
+#				print("2 $num2, PA2=$pa2, addr2=$addr2\n\n");
+			} elsif ($pa1 eq $addr2 and $addr1 ne $pa2) {
+				$sit3 += 1;
+#				print("3 $num1, PA1=$pa1, addr1=$addr1\n");
+#				print("3 $num2, PA2=$pa2, addr2=$addr2\n\n");
+			} else {
+				$sit5 += 5;
+			}
+			}
+		}	
+	}
+}
+} else {
+
 while (<STDIN>) {
 	if (/(\d+).*(store|load).*(hit|miss).*(VA=)(.{16}).*(PA=)(.{8}).*/) {
 	       	$uninstr = $instr; #write previous number instruction
@@ -104,7 +247,7 @@ while (<STDIN>) {
 				$dif = 0;
 			}
 		} elsif ($va eq $y2) {
-			$dif++;
+			$diff++;
 			if ($sum != 0) {
 				$j++;
 				$summ[$j] = $sum;
@@ -139,120 +282,33 @@ while (<STDIN>) {
 			$_ = $str;
 			if (m/.*(dmemacc).*/) {
 #Сортировка по маскам
-				if ($addr1 eq $pa2) {
-					if ($pa1 eq $addr2) {
-						$sit4 += 1;
-					} else {
-						$sit1 += 1;
-					}
-				} elsif ($addr1 eq $addr2) {
-					$sit2 += 1;
-				} elsif ($pa1 eq $addr2 and $addr1 ne $pa2) {
-					$sit3 += 1;
+			if ($addr1 eq $pa2) {
+				if ($pa1 eq $addr2) {
+#					print("4 $num1, PA1=$pa1, addr1=$addr1\n");
+#					print("4 $num2, PA2=$pa2, addr2=$addr2\n\n");
+					$sit4 += 1;
 				} else {
-					$sit5 += 5;
+#					print("1 $num1, PA1=$pa1, addr1=$addr1\n");
+#					print("1 $num2, PA2=$pa2, addr2=$addr2\n\n");
+					$sit1 += 1;
 				}
-			}	
-		}
-	}
-	if (/(\d+).*(dcache).*(load  miss).*(VA=)(.{16}).*/) {
-		$instr = $1;
-		$va = $5;
-		$i++;
-		$buf_addr[$i] = hex($va);
-		if ($y == 0 and $buf_addr[$i - 3] - $buf_addr[$i - 2] != 0x20 and $buf_addr[$i - 2] - $buf_addr[$i - 1] != 0x20 and $buf_addr[$i + 1] - $buf_addr[$i] != 0x20) {
-			$y = 1;
-			$in++;
-		} elsif ($y == 1 and $buf_addr[$i - 3] - $buf_addr[$i] == 0x60 and $buf_addr[$i - 2] - $buf_addr[$i] == 0x40 and $buf_addr[$i - 1] - $buf_addr[$i] == 0x20) {
-			$y = 0;
-			$dec++;
-		}
-	} elsif (/(\d+).*(dcache).*(store miss).*(VA=)(.{16}).*/) {
-		$instr = $1;
-		$str=<STDIN>;
-		$_= $str ;
-		if (/($instr).*(scache).*(store miss).*(VA=)(.{16}).*/) {
-			$va = $5;
-			$i++;
-			$buf_addr[$i] = hex($va);
-			if ($y == 0 and $buf_addr[$i - 3] - $buf_addr[$i - 2] != 0x20 and $buf_addr[$i - 2] - $buf_addr[$i - 1] != 0x20 and $buf_addr[$i + 1] - $buf_addr[$i] != 0x20) {
-				$y = 1;
-				$in++;
-			} elsif ($y == 1 and $buf_addr[$i - 3] - $buf_addr[$i] == 0x60 and $buf_addr[$i - 2] - $buf_addr[$i] == 0x40 and $buf_addr[$i - 1] - $buf_addr[$i] == 0x20) {
-				$y = 0;
-				$dec++;
+			} elsif ($addr1 eq $addr2) {
+				$sit2 += 1;
+#				print("2 $num1, PA1=$pa1, addr1=$addr1\n");
+#				print("2 $num2, PA2=$pa2, addr2=$addr2\n\n");
+			} elsif ($pa1 eq $addr2 and $addr1 ne $pa2) {
+				$sit3 += 1;
+#				print("3 $num1, PA1=$pa1, addr1=$addr1\n");
+#				print("3 $num2, PA2=$pa2, addr2=$addr2\n\n");
+			} else {
+				$sit5 += 5;
 			}
-		}
-	}
-	if (/(\d+).*(PC=0x)(.{16}).*( b | bal | beq | beql | bgez | blez | bne | bnel | j | jal | jalr | jr | blezl ).*(0x)(.{16}).*/) {
-#		print "pc $3, add $6\n";
-		$n = $4;
-		$inst = $1;
-		$inst2 = $inst + 2;
-		$pc = $3;
-		$addr2 = $addr;
-		$addr = $6;
-		if (hex($addr) < hex($pc)) {
-			if (hex($addr2) == hex($addr)) {
-				$x = $x;	
-			} elsif (hex($pc) - hex($addr) < 0x38 and hex($pc) - hex($addr) != 0) {
-				$ago++;
-  	                        $short++; 
-			} elsif (hex($pc) - hex($addr) > 0x38) {
-				$ago++;
-                                $long++;
-  	                }
-		} else {
-			$forward++;
-		}
-#		if (hex($addr) - hex($pc) < 0x38 and hex($addr) - hex($pc) > 0) {
-		if ($n eq ' bne ') {
-			$bne++;
-			$p  = 1;
-		} elsif ($n eq ' j ') {
-			$j++;
-		} elsif ($n eq ' b ') {
-			$b++;
-		} elsif ($n eq ' beq ') {
-			$beq++;
-		} elsif ($n eq ' beql ') {
-			$beql++;
-		} elsif ($n eq ' bgez ') {
-			$bgez++;
-		} elsif ($n eq ' blezl ') {
-			$blezl++;
-		} elsif ($n eq ' jal ') {
-			$jal++;
-		}
-	} elsif (/(\d+).*(PC=0x)(.{16}).*( b | jalr | jr | blez | bal ).*/) {
-
-		$n = $4;
-		$inst = $1;
-		$inst2 = $inst + 2;
-		$pc = $3;
-		if ($n eq ' blez ') {
-			$blez++;
-		} elsif ($n eq ' jalr ') {
-			$jalr++;
-		} elsif ($n eq ' bal ') {
-			$bal++;
-		} elsif ($n eq ' jal ') {
-			$jal++;
-		} elsif ($n eq ' jr ') {
-			$jr++;
-		}
-	}
-	if ($p == 1 and /($inst2).*(PC=0x)(.{16}).*/) {
-		$addr2 = $3;
-		$p = 0;
-		if ($addr eq $addr2) {
-			$ye++;
-		} else {
-			$no++;
-		}
+			}
+		}	
 	}
 }
 
+}
 $n = 1;
 @summ = sort { $a <=> $b } @summ; #sort increment
 for ($i = 1; $i <=$#summ; $i++) {
@@ -264,6 +320,7 @@ for ($i = 1; $i <=$#summ; $i++) {
 		$n = 1;
 	}
 }
+
 $n = 1;
 @diff = sort { $a <=> $b } @diff; #sort decrement
 for ($i = 1; $i <=$#diff; $i++) {
@@ -311,9 +368,3 @@ print"sw A - wb B | sw C - wb B = $sit2\n";
 print"sw A - wb B | sw C - wb A = $sit3\n";
 print"sw A - wb B | sw B - wb A = $sit4\n";
 print"sw A - wb B | sw C - wb D = $sit5\n";
-printf ("Количество попаданий в буфера inc = %d, dec = %d\n", $in, $dec);
-
-print ("\n b=$b,\n bne=$bne,\n j=$j,\n beq=$beq,\n bal=$bal,\n blezl=$blezl,\n jal=$jal,\n jr=$jr,\n beql=$beql,\n bgez=$bgez,\n blez=$blez,\n jalr=$jalr\n");
-print ("Jump direction: forward=$forward, back=$ago\n");
-print ("Cycle short(addr<0x38) =$short, long=$long\n");
-print ("Taken:$ye, not taken:$no\n");
