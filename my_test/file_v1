@@ -1,0 +1,5 @@
+#!/usr/bin/perl
+
+foreach (@lots_of_filenames) {
+	print "$_ is readable\n" -r; # same -r $_
+}

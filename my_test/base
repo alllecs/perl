@@ -1,0 +1,3 @@
+#!/usr/bin/perl
+me = "/usr/local/bin/perl";
+my $basename = basename $name;
